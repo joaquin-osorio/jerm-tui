@@ -39,7 +39,27 @@ pub fn render_terminal(f: &mut Frame, area: Rect, app: &App) {
 
     // Take visible lines
     let visible_lines: Vec<Line> = lines.into_iter().skip(scroll).collect();
-    let num_visible_lines = visible_lines.len();
+
+    // Calculate how many visual lines we'll actually render (accounting for wrapping)
+    let width = inner_area.width.max(1) as usize;
+    let mut visual_line_count = 0;
+    let mut input_line_visual_start = 0;
+
+    for (i, line) in visible_lines.iter().enumerate() {
+        let line_width = line.width();
+        let wrapped_lines = if line_width == 0 {
+            1
+        } else {
+            (line_width + width - 1) / width
+        };
+
+        // If this is the last line (the input line), remember where it starts
+        if i == visible_lines.len().saturating_sub(1) {
+            input_line_visual_start = visual_line_count;
+        }
+
+        visual_line_count += wrapped_lines;
+    }
 
     let paragraph = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
 
@@ -47,8 +67,11 @@ pub fn render_terminal(f: &mut Frame, area: Rect, app: &App) {
 
     // Position cursor at the input position
     let cursor_x = inner_area.x + (prompt.len() + app.cursor_pos) as u16;
-    // The cursor should be on the last visible line, which is (num_visible_lines - 1)
-    let cursor_y = inner_area.y + (num_visible_lines.saturating_sub(1)) as u16;
+    // The input line starts at input_line_visual_start, and we need to add the offset
+    // within that line based on where the cursor is
+    let prompt_and_cursor_len = prompt.len() + app.cursor_pos;
+    let lines_into_input = prompt_and_cursor_len / width;
+    let cursor_y = inner_area.y + (input_line_visual_start + lines_into_input).min(available_height.saturating_sub(1)) as u16;
 
     // Make sure cursor is within bounds
     let cursor_x = cursor_x.min(inner_area.x + inner_area.width - 1);
