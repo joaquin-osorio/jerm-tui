@@ -9,7 +9,12 @@ use ratatui::{
 use crate::shortcuts::ShortcutManager;
 
 /// Render the shortcuts sidebar
-pub fn render_sidebar(f: &mut Frame, area: Rect, shortcuts: &ShortcutManager) {
+pub fn render_sidebar(
+    f: &mut Frame,
+    area: Rect,
+    shortcuts: &ShortcutManager,
+    selected_index: Option<usize>,
+) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray))
@@ -46,11 +51,24 @@ pub fn render_sidebar(f: &mut Frame, area: Rect, shortcuts: &ShortcutManager) {
         .take(9) // Only show first 9 (for Ctrl+1 through Ctrl+9)
         .enumerate()
         .map(|(i, shortcut)| {
-            let number_style = Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD);
+            let is_selected = selected_index == Some(i);
 
-            let path_style = Style::default().fg(Color::White);
+            let number_style = if is_selected {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .bg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            };
+
+            let path_style = if is_selected {
+                Style::default().fg(Color::White).bg(Color::DarkGray)
+            } else {
+                Style::default().fg(Color::White)
+            };
 
             let display_name = shortcut.display_name();
 

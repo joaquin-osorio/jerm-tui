@@ -10,6 +10,8 @@ pub enum AppMode {
     Normal,
     /// Navigation list mode - browsing directories with arrow keys
     NavigationList,
+    /// Shortcut selection mode - navigating shortcuts with arrow keys
+    ShortcutSelection,
 }
 
 /// Main application state
@@ -32,6 +34,8 @@ pub struct App {
     pub navigation_state: NavigationState,
     /// Shortcut manager
     pub shortcuts: ShortcutManager,
+    /// Selected shortcut index for goto mode
+    pub selected_shortcut_index: usize,
     /// Whether the app should quit
     pub should_quit: bool,
     /// Scroll offset for output (reserved for future use)
@@ -55,6 +59,7 @@ impl App {
             mode: AppMode::Normal,
             navigation_state: NavigationState::new(),
             shortcuts,
+            selected_shortcut_index: 0,
             should_quit: false,
             output_scroll: 0,
         }
@@ -195,6 +200,49 @@ impl App {
             self.current_dir = selected_path;
         }
         self.exit_navigation_mode();
+    }
+
+    /// Enter shortcut selection mode
+    pub fn enter_goto_mode(&mut self) {
+        if !self.shortcuts.is_empty() {
+            self.mode = AppMode::ShortcutSelection;
+            self.selected_shortcut_index = 0;
+        }
+    }
+
+    /// Exit shortcut selection mode
+    pub fn exit_goto_mode(&mut self) {
+        self.mode = AppMode::Normal;
+    }
+
+    /// Move selection up in shortcut list
+    pub fn goto_move_up(&mut self) {
+        if self.selected_shortcut_index > 0 {
+            self.selected_shortcut_index -= 1;
+        }
+    }
+
+    /// Move selection down in shortcut list
+    pub fn goto_move_down(&mut self) {
+        let max_index = self.shortcuts.get_shortcuts().len().saturating_sub(1).min(8);
+        if self.selected_shortcut_index < max_index {
+            self.selected_shortcut_index += 1;
+        }
+    }
+
+    /// Confirm shortcut selection and navigate
+    pub fn confirm_goto(&mut self) {
+        if let Some(shortcut) = self.shortcuts.get_shortcut(self.selected_shortcut_index + 1) {
+            let path = shortcut.path.clone();
+            if path.is_dir() {
+                self.add_output(&format!("cd {}", path.display()));
+                self.current_dir = path.clone();
+                self.shortcuts.touch_shortcut(&path);
+            } else {
+                self.add_output(&format!("Error: {} no longer exists", path.display()));
+            }
+        }
+        self.exit_goto_mode();
     }
 }
 

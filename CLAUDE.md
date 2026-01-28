@@ -126,6 +126,7 @@ Location: `~/.config/jerm/shortcuts.json`
 | Command     | Action                             |
 | ----------- | ---------------------------------- |
 | `jerm save` | Save current directory as shortcut |
+| `jerm goto` | Navigate to a saved shortcut       |
 
 ## Dependencies
 

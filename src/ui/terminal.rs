@@ -61,6 +61,7 @@ pub fn render_status_bar(f: &mut Frame, area: Rect, app: &App) {
     let mode_text = match app.mode {
         crate::app::AppMode::Normal => "NORMAL",
         crate::app::AppMode::NavigationList => "NAV",
+        crate::app::AppMode::ShortcutSelection => "GOTO",
     };
 
     let status = Line::from(vec![

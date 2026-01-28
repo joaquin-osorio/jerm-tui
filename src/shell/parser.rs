@@ -13,6 +13,8 @@ pub enum ParsedCommand {
     Exit,
     /// Save current directory as shortcut
     JermSave,
+    /// Enter shortcut selection mode
+    JermGoto,
     /// Regular shell command to execute
     Shell(String),
 }
@@ -39,6 +41,7 @@ pub fn parse_command(input: &str) -> ParsedCommand {
         "exit" | "quit" => ParsedCommand::Exit,
         "jerm" => match args {
             Some("save") => ParsedCommand::JermSave,
+            Some("goto") => ParsedCommand::JermGoto,
             _ => ParsedCommand::Shell(trimmed.to_string()),
         },
         _ => ParsedCommand::Shell(trimmed.to_string()),
@@ -100,6 +103,11 @@ mod tests {
     #[test]
     fn test_parse_jerm_save() {
         assert_eq!(parse_command("jerm save"), ParsedCommand::JermSave);
+    }
+
+    #[test]
+    fn test_parse_jerm_goto() {
+        assert_eq!(parse_command("jerm goto"), ParsedCommand::JermGoto);
     }
 
     #[test]

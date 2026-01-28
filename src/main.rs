@@ -62,6 +62,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
             match app.mode {
                 AppMode::Normal => handle_normal_mode(app, key.code, key.modifiers),
                 AppMode::NavigationList => handle_navigation_mode(app, key.code),
+                AppMode::ShortcutSelection => handle_goto_mode(app, key.code),
             }
         }
 
@@ -94,10 +95,19 @@ fn draw_ui(f: &mut ratatui::Frame, app: &mut App) {
             // In navigation mode, show navigator in the terminal area
             render_navigator(f, main_chunks[0], &mut app.navigation_state);
         }
+        AppMode::ShortcutSelection => {
+            // In goto mode, still show terminal but highlight sidebar
+            render_terminal(f, main_chunks[0], app);
+        }
     }
 
-    // Always render sidebar
-    render_sidebar(f, main_chunks[1], &app.shortcuts);
+    // Always render sidebar, passing selection info if in goto mode
+    let selected_index = if app.mode == AppMode::ShortcutSelection {
+        Some(app.selected_shortcut_index)
+    } else {
+        None
+    };
+    render_sidebar(f, main_chunks[1], &app.shortcuts, selected_index);
 }
 
 fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
@@ -252,6 +262,32 @@ fn handle_navigation_mode(app: &mut App, code: KeyCode) {
     }
 }
 
+fn handle_goto_mode(app: &mut App, code: KeyCode) {
+    match code {
+        // Up - move selection up
+        KeyCode::Up => {
+            app.goto_move_up();
+        }
+
+        // Down - move selection down
+        KeyCode::Down => {
+            app.goto_move_down();
+        }
+
+        // Enter - confirm selection and navigate
+        KeyCode::Enter => {
+            app.confirm_goto();
+        }
+
+        // Escape - cancel goto mode
+        KeyCode::Esc => {
+            app.exit_goto_mode();
+        }
+
+        _ => {}
+    }
+}
+
 fn execute_input(app: &mut App) {
     let input = app.input.clone();
     app.add_command_to_output(&input);
@@ -290,6 +326,10 @@ fn execute_input(app: &mut App) {
         ParsedCommand::JermSave => {
             app.shortcuts.add_shortcut(app.current_dir.clone());
             app.add_output(&format!("Shortcut saved: {}", app.current_dir.display()));
+        }
+
+        ParsedCommand::JermGoto => {
+            app.enter_goto_mode();
         }
 
         ParsedCommand::Shell(cmd) => match execute_command(&cmd, &app.current_dir) {

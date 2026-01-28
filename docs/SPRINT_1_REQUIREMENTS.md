@@ -70,8 +70,12 @@ The terminal must:
 
 #### Navigation
 
-- Selecting a shortcut navigates directly to that directory
-- `Ctrl+1` through `Ctrl+9` for quick access to first 9 shortcuts
+- **Visual mode:** `jerm goto` command enters shortcut selection mode
+  - Highlights first shortcut in sidebar
+  - `↑/↓` arrows navigate between shortcuts
+  - `Enter` confirms selection and navigates to directory
+  - `Escape` cancels without navigation
+- **Direct access:** `Ctrl+1` through `Ctrl+9` for quick access to first 9 shortcuts
 
 #### Data Model
 
@@ -138,7 +142,11 @@ The following are explicitly **NOT included** in Sprint 1:
 - [ ] Sidebar displays shortcuts
 - [ ] `jerm save` saves current directory
 - [ ] Shortcuts ordered by last access
-- [ ] Selecting shortcut navigates to directory
+- [ ] `jerm goto` enters shortcut selection mode
+- [ ] `↑/↓` arrows navigate shortcuts in goto mode
+- [ ] `Enter` confirms selection and navigates
+- [ ] `Escape` cancels goto mode
+- [ ] `Ctrl+1` through `Ctrl+9` navigate directly to shortcuts
 - [ ] JSON persistence works correctly
 - [ ] `last_accessed` updates on shortcut use
 
