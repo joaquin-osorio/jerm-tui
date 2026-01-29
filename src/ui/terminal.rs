@@ -51,41 +51,58 @@ pub fn render_terminal(f: &mut Frame, area: Rect, app: &App) {
     let width = inner_area.width.max(1) as usize;
     let available_height = inner_area.height as usize;
 
-    // Build visual lines manually
-    let mut visual_lines: Vec<String> = Vec::new();
+    // Build visual lines as Line objects
+    let mut visual_lines: Vec<Line> = Vec::new();
 
     // Add output lines (with wrapping)
     for line in &app.output {
         let wrapped = wrap_line(line, width);
-        visual_lines.extend(wrapped);
+        for wrapped_line in wrapped {
+            visual_lines.push(Line::from(wrapped_line));
+        }
     }
 
     // Save where the input line starts
     let input_line_start = visual_lines.len();
 
     // Add current prompt and input (with wrapping)
-    let prompt = app.prompt();
-    let full_input_line = format!("{}{}", prompt, app.input);
+    let prompt_spans = app.prompt_spans();
+    let input_span = Span::raw(app.input.clone());
+    let mut full_line_spans = prompt_spans;
+    full_line_spans.push(input_span);
+
+    // For wrapping calculation, use plain string
+    let prompt_str = app.prompt_string();
+    let full_input_line = format!("{}{}", prompt_str, app.input);
     let wrapped_input = wrap_line(&full_input_line, width);
-    visual_lines.extend(wrapped_input);
+
+    // If no wrapping, use colored Line
+    if wrapped_input.len() == 1 {
+        visual_lines.push(Line::from(full_line_spans));
+    } else {
+        // Wrapping: first line colored, rest plain (acceptable limitation)
+        visual_lines.push(Line::from(full_line_spans));
+        for wrapped_part in wrapped_input.iter().skip(1) {
+            visual_lines.push(Line::from(wrapped_part.clone()));
+        }
+    }
 
     // Calculate scroll to show the bottom
     let total_visual_lines = visual_lines.len();
     let scroll = total_visual_lines.saturating_sub(available_height);
 
     // Take visible lines
-    let visible_lines: Vec<String> = visual_lines
+    let visible_lines: Vec<Line> = visual_lines
         .into_iter()
         .skip(scroll)
         .collect();
 
     // Render the visible lines
-    let text = visible_lines.join("\n");
-    let paragraph = Paragraph::new(text);
+    let paragraph = Paragraph::new(visible_lines);
     f.render_widget(paragraph, inner_area);
 
     // Calculate cursor position
-    let prompt_width = prompt.width();
+    let prompt_width = prompt_str.width();
     let input_before_cursor = &app.input[..app.input
         .char_indices()
         .nth(app.cursor_pos)

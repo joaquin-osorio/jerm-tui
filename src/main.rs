@@ -1,10 +1,12 @@
 mod app;
+mod git;
 mod navigation;
 mod shell;
 mod shortcuts;
 mod ui;
 
 use std::io;
+use std::time::Duration;
 
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
@@ -56,13 +58,19 @@ fn main() -> io::Result<()> {
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> io::Result<()> {
     loop {
+        // Poll git updates
+        app.poll_git_updates();
+
         terminal.draw(|f| draw_ui(f, app))?;
 
-        if let Event::Key(key) = event::read()? {
-            match app.mode {
-                AppMode::Normal => handle_normal_mode(app, key.code, key.modifiers),
-                AppMode::NavigationList => handle_navigation_mode(app, key.code),
-                AppMode::ShortcutSelection => handle_goto_mode(app, key.code),
+        // Non-blocking poll with 100ms timeout
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                match app.mode {
+                    AppMode::Normal => handle_normal_mode(app, key.code, key.modifiers),
+                    AppMode::NavigationList => handle_navigation_mode(app, key.code),
+                    AppMode::ShortcutSelection => handle_goto_mode(app, key.code),
+                }
             }
         }
 
@@ -121,6 +129,7 @@ fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
                     app.add_output(&format!("cd {}", path.display()));
                     app.current_dir = path.clone();
                     app.shortcuts.touch_shortcut(&path);
+                    app.refresh_git_status(false);
                 } else {
                     app.add_output(&format!("Error: {} no longer exists", path.display()));
                 }
@@ -251,6 +260,7 @@ fn handle_navigation_mode(app: &mut App, code: KeyCode) {
                 app.add_output(&format!("cd {}", path.display()));
             }
             app.confirm_navigation();
+            app.refresh_git_status(false);
         }
 
         // Escape - cancel navigation
@@ -277,6 +287,7 @@ fn handle_goto_mode(app: &mut App, code: KeyCode) {
         // Enter - confirm selection and navigate
         KeyCode::Enter => {
             app.confirm_goto();
+            app.refresh_git_status(false);
         }
 
         // Escape - cancel goto mode
@@ -304,6 +315,7 @@ fn execute_input(app: &mut App) {
             match resolve_cd_path(target, &app.current_dir) {
                 Ok(new_path) => {
                     app.current_dir = new_path;
+                    app.refresh_git_status(false); // Local only
                 }
                 Err(e) => {
                     app.add_output(&format!("cd: {}", e));
@@ -337,6 +349,7 @@ fn execute_input(app: &mut App) {
                 for line in result.all_lines() {
                     app.add_output(&line);
                 }
+                app.refresh_git_status(false); // Local only
             }
             Err(e) => {
                 app.add_output(&format!("Error: {}", e));

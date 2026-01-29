@@ -1,5 +1,11 @@
 use std::path::PathBuf;
+use std::sync::mpsc::{Receiver, Sender};
+use std::time::{Duration, Instant};
 
+use ratatui::style::{Color, Style};
+use ratatui::text::Span;
+
+use crate::git::{spawn_git_worker, GitMessage, GitStatus};
 use crate::navigation::directory::NavigationState;
 use crate::shortcuts::manager::ShortcutManager;
 
@@ -41,6 +47,14 @@ pub struct App {
     /// Scroll offset for output (reserved for future use)
     #[allow(dead_code)]
     pub output_scroll: usize,
+    /// Git status for current directory
+    pub git_status: Option<GitStatus>,
+    /// Channel to send messages to git worker
+    git_tx: Sender<GitMessage>,
+    /// Channel to receive messages from git worker
+    git_rx: Receiver<GitMessage>,
+    /// Last time git was polled
+    last_git_poll: Instant,
 }
 
 impl App {
@@ -48,9 +62,10 @@ impl App {
     pub fn new() -> Self {
         let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
         let shortcuts = ShortcutManager::new();
+        let (git_tx, git_rx) = spawn_git_worker();
 
-        Self {
-            current_dir,
+        let mut app = Self {
+            current_dir: current_dir.clone(),
             history: Vec::new(),
             history_index: None,
             input: String::new(),
@@ -62,11 +77,46 @@ impl App {
             selected_shortcut_index: 0,
             should_quit: false,
             output_scroll: 0,
+            git_status: None,
+            git_tx,
+            git_rx,
+            last_git_poll: Instant::now(),
+        };
+
+        // Trigger initial git status
+        app.refresh_git_status(false);
+        app
+    }
+
+    /// Refresh git status for current directory
+    pub fn refresh_git_status(&mut self, with_fetch: bool) {
+        let _ = self.git_tx.send(GitMessage::UpdateStatus {
+            dir: self.current_dir.display().to_string(),
+            with_fetch,
+        });
+    }
+
+    /// Poll for git updates from worker thread
+    pub fn poll_git_updates(&mut self) {
+        // Drain all messages from git_rx
+        while let Ok(msg) = self.git_rx.try_recv() {
+            if let GitMessage::StatusUpdate(status) = msg {
+                self.git_status = status;
+            }
+        }
+
+        // Check 30s interval for background fetch
+        if self.last_git_poll.elapsed() >= Duration::from_secs(30) {
+            self.refresh_git_status(true); // with fetch
+            self.last_git_poll = Instant::now();
         }
     }
 
-    /// Get the current prompt string
-    pub fn prompt(&self) -> String {
+    /// Get prompt as styled spans for colored rendering
+    pub fn prompt_spans(&self) -> Vec<Span<'static>> {
+        let mut spans = Vec::new();
+
+        // Directory (with ~ replacement)
         let dir = self.current_dir.display().to_string();
         let home = dirs::home_dir().map(|h| h.display().to_string());
 
@@ -80,7 +130,64 @@ impl App {
             dir
         };
 
-        format!("{display_dir} $ ")
+        spans.push(Span::raw(display_dir));
+        spans.push(Span::raw(" "));
+
+        // Git info
+        if let Some(ref git) = self.git_status {
+            if !git.branch.is_empty() {
+                // Branch in gray
+                spans.push(Span::styled(
+                    git.branch.clone(),
+                    Style::default().fg(Color::Gray),
+                ));
+
+                // Dirty indicator
+                if git.is_dirty {
+                    spans.push(Span::styled(
+                        "*".to_string(),
+                        Style::default().fg(Color::Gray),
+                    ));
+                }
+
+                // Ahead indicator in cyan
+                if git.ahead > 0 {
+                    spans.push(Span::raw(" "));
+                    spans.push(Span::styled(
+                        format!("↑{}", git.ahead),
+                        Style::default().fg(Color::Cyan),
+                    ));
+                }
+
+                // Behind indicator in cyan
+                if git.behind > 0 {
+                    spans.push(Span::raw(" "));
+                    spans.push(Span::styled(
+                        format!("↓{}", git.behind),
+                        Style::default().fg(Color::Cyan),
+                    ));
+                }
+
+                spans.push(Span::raw(" "));
+            }
+        }
+
+        spans.push(Span::raw("$ "));
+        spans
+    }
+
+    /// Get prompt as plain string (for output history and cursor calculations)
+    pub fn prompt_string(&self) -> String {
+        self.prompt_spans()
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect::<Vec<_>>()
+            .join("")
+    }
+
+    /// Get the current prompt string (backward compatibility)
+    pub fn prompt(&self) -> String {
+        self.prompt_string()
     }
 
     /// Add a line to the output buffer
@@ -249,5 +356,12 @@ impl App {
 impl Default for App {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Drop for App {
+    fn drop(&mut self) {
+        // Send shutdown message to git worker thread
+        let _ = self.git_tx.send(GitMessage::Shutdown);
     }
 }
