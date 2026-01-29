@@ -77,37 +77,37 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App)
 fn draw_ui(f: &mut ratatui::Frame, app: &mut App) {
     let size = f.size();
 
-    // Main layout: terminal on left, sidebar on right
+    // Main layout: sidebar on left, terminal on right
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Min(40),    // Terminal (flexible)
             Constraint::Length(25), // Sidebar (fixed width)
+            Constraint::Min(40),    // Terminal (flexible)
         ])
         .split(size);
 
-    // Render based on mode
-    match app.mode {
-        AppMode::Normal => {
-            render_terminal(f, main_chunks[0], app);
-        }
-        AppMode::NavigationList => {
-            // In navigation mode, show navigator in the terminal area
-            render_navigator(f, main_chunks[0], &mut app.navigation_state);
-        }
-        AppMode::ShortcutSelection => {
-            // In goto mode, still show terminal but highlight sidebar
-            render_terminal(f, main_chunks[0], app);
-        }
-    }
-
-    // Always render sidebar, passing selection info if in goto mode
+    // Always render sidebar first (left side), passing selection info if in goto mode
     let selected_index = if app.mode == AppMode::ShortcutSelection {
         Some(app.selected_shortcut_index)
     } else {
         None
     };
-    render_sidebar(f, main_chunks[1], &app.shortcuts, selected_index);
+    render_sidebar(f, main_chunks[0], &app.shortcuts, selected_index);
+
+    // Render terminal/navigator based on mode (right side)
+    match app.mode {
+        AppMode::Normal => {
+            render_terminal(f, main_chunks[1], app);
+        }
+        AppMode::NavigationList => {
+            // In navigation mode, show navigator in the terminal area
+            render_navigator(f, main_chunks[1], &mut app.navigation_state);
+        }
+        AppMode::ShortcutSelection => {
+            // In goto mode, still show terminal but highlight sidebar
+            render_terminal(f, main_chunks[1], app);
+        }
+    }
 }
 
 fn handle_normal_mode(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
