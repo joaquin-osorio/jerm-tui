@@ -1,12 +1,13 @@
 use ratatui::{
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph},
     Frame,
 };
 
 use crate::navigation::NavigationState;
+use crate::theme::Palette;
 
 /// Render the cd -list navigation overlay
 pub fn render_navigator(f: &mut Frame, area: Rect, nav: &mut NavigationState) {
@@ -15,7 +16,8 @@ pub fn render_navigator(f: &mut Frame, area: Rect, nav: &mut NavigationState) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan))
+        .border_type(BorderType::Plain)
+        .border_style(Style::default().fg(Palette::BORDER_ACTIVE))
         .title(" Select Directory ");
 
     let inner_area = block.inner(area);
@@ -53,7 +55,7 @@ pub fn render_navigator(f: &mut Frame, area: Rect, nav: &mut NavigationState) {
     let header = Paragraph::new(Line::from(Span::styled(
         path_text,
         Style::default()
-            .fg(Color::Yellow)
+            .fg(Palette::NAV_HEADER)
             .add_modifier(Modifier::BOLD),
     )));
     f.render_widget(header, header_area);
@@ -78,11 +80,11 @@ pub fn render_navigator(f: &mut Frame, area: Rect, nav: &mut NavigationState) {
 
             let style = if is_selected {
                 Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::Cyan)
+                    .fg(Palette::NAV_SELECTED_FG)
+                    .bg(Palette::NAV_SELECTED_BG)
                     .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::White)
+                Style::default().fg(Palette::TEXT_NORMAL)
             };
 
             let prefix = if is_selected { "> " } else { "  " };
@@ -110,8 +112,8 @@ pub fn render_navigator(f: &mut Frame, area: Rect, nav: &mut NavigationState) {
         height: footer_height as u16,
     };
 
-    let hint_style = Style::default().fg(Color::DarkGray);
-    let key_style = Style::default().fg(Color::Cyan);
+    let hint_style = Style::default().fg(Palette::TEXT_MUTED);
+    let key_style = Style::default().fg(Palette::NAV_KEY_HINT);
 
     let footer_lines = vec![
         Line::from(vec![

@@ -58,6 +58,42 @@ impl Shortcut {
 
         path_str
     }
+
+    /// Get a human-readable relative time since last access
+    ///
+    /// Returns strings like "now", "5m", "2h", "3d", "2w", "1mo"
+    pub fn time_ago(&self) -> String {
+        let now = Utc::now();
+        let duration = now.signed_duration_since(self.last_accessed);
+
+        let seconds = duration.num_seconds();
+        if seconds < 60 {
+            return "now".to_string();
+        }
+
+        let minutes = duration.num_minutes();
+        if minutes < 60 {
+            return format!("{}m", minutes);
+        }
+
+        let hours = duration.num_hours();
+        if hours < 24 {
+            return format!("{}h", hours);
+        }
+
+        let days = duration.num_days();
+        if days < 7 {
+            return format!("{}d", days);
+        }
+
+        let weeks = days / 7;
+        if weeks < 4 {
+            return format!("{}w", weeks);
+        }
+
+        let months = days / 30;
+        format!("{}mo", months.max(1))
+    }
 }
 
 /// Container for all shortcuts (for JSON serialization)
@@ -140,5 +176,51 @@ mod tests {
 
         assert_eq!(parsed.shortcuts.len(), 1);
         assert_eq!(parsed.shortcuts[0].path, PathBuf::from("/tmp"));
+    }
+
+    #[test]
+    fn test_time_ago_now() {
+        let shortcut = Shortcut::new(PathBuf::from("/tmp"));
+        assert_eq!(shortcut.time_ago(), "now");
+    }
+
+    #[test]
+    fn test_time_ago_minutes() {
+        use chrono::Duration;
+        let mut shortcut = Shortcut::new(PathBuf::from("/tmp"));
+        shortcut.last_accessed = Utc::now() - Duration::minutes(5);
+        assert_eq!(shortcut.time_ago(), "5m");
+    }
+
+    #[test]
+    fn test_time_ago_hours() {
+        use chrono::Duration;
+        let mut shortcut = Shortcut::new(PathBuf::from("/tmp"));
+        shortcut.last_accessed = Utc::now() - Duration::hours(2);
+        assert_eq!(shortcut.time_ago(), "2h");
+    }
+
+    #[test]
+    fn test_time_ago_days() {
+        use chrono::Duration;
+        let mut shortcut = Shortcut::new(PathBuf::from("/tmp"));
+        shortcut.last_accessed = Utc::now() - Duration::days(3);
+        assert_eq!(shortcut.time_ago(), "3d");
+    }
+
+    #[test]
+    fn test_time_ago_weeks() {
+        use chrono::Duration;
+        let mut shortcut = Shortcut::new(PathBuf::from("/tmp"));
+        shortcut.last_accessed = Utc::now() - Duration::weeks(2);
+        assert_eq!(shortcut.time_ago(), "2w");
+    }
+
+    #[test]
+    fn test_time_ago_months() {
+        use chrono::Duration;
+        let mut shortcut = Shortcut::new(PathBuf::from("/tmp"));
+        shortcut.last_accessed = Utc::now() - Duration::days(45);
+        assert_eq!(shortcut.time_ago(), "1mo");
     }
 }

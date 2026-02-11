@@ -1,8 +1,10 @@
 mod app;
 mod git;
+mod highlight;
 mod navigation;
 mod shell;
 mod shortcuts;
+mod theme;
 mod ui;
 
 use std::io;

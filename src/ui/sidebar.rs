@@ -1,12 +1,13 @@
 use ratatui::{
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem},
+    widgets::{Block, BorderType, Borders, List, ListItem},
     Frame,
 };
 
 use crate::shortcuts::ShortcutManager;
+use crate::theme::{Icons, Palette};
 
 /// Render the shortcuts sidebar
 pub fn render_sidebar(
@@ -15,9 +16,12 @@ pub fn render_sidebar(
     shortcuts: &ShortcutManager,
     selected_index: Option<usize>,
 ) {
+    let icons = Icons::new();
+
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray))
+        .border_type(BorderType::Plain)
+        .border_style(Style::default().fg(Palette::BORDER_DEFAULT))
         .title(" Shortcuts ");
 
     let inner_area = block.inner(area);
@@ -28,12 +32,12 @@ pub fn render_sidebar(
         let help_items = vec![
             ListItem::new(Line::from(Span::styled(
                 "No shortcuts",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(Palette::TEXT_MUTED),
             ))),
             ListItem::new(Line::from("")),
             ListItem::new(Line::from(Span::styled(
                 "jerm save to add",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(Palette::TEXT_MUTED),
             ))),
         ];
 
@@ -44,8 +48,9 @@ pub fn render_sidebar(
 
     // Get shortcuts sorted by last accessed
     let shortcut_list = shortcuts.get_shortcuts();
+    let inner_width = inner_area.width as usize;
 
-    // Create list items with numbers
+    // Create list items with numbers, icons, paths, and times
     let items: Vec<ListItem> = shortcut_list
         .iter()
         .take(9) // Only show first 9 (for Ctrl+1 through Ctrl+9)
@@ -55,35 +60,100 @@ pub fn render_sidebar(
 
             let number_style = if is_selected {
                 Style::default()
-                    .fg(Color::Yellow)
-                    .bg(Color::DarkGray)
+                    .fg(Palette::SIDEBAR_NUMBER)
+                    .bg(Palette::BG_SELECTED)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(Palette::SIDEBAR_NUMBER)
                     .add_modifier(Modifier::BOLD)
             };
 
             let path_style = if is_selected {
-                Style::default().fg(Color::White).bg(Color::DarkGray)
+                Style::default()
+                    .fg(Palette::SIDEBAR_PATH)
+                    .bg(Palette::BG_SELECTED)
             } else {
-                Style::default().fg(Color::White)
+                Style::default().fg(Palette::SIDEBAR_PATH)
+            };
+
+            let time_style = if is_selected {
+                Style::default()
+                    .fg(Palette::SIDEBAR_TIME)
+                    .bg(Palette::BG_SELECTED)
+            } else {
+                Style::default().fg(Palette::SIDEBAR_TIME)
             };
 
             let display_name = shortcut.display_name();
+            let time_ago = shortcut.time_ago();
 
-            // Truncate path if too long for sidebar
-            let max_width = (area.width as usize).saturating_sub(6); // Account for borders and number
-            let truncated = if display_name.len() > max_width {
-                format!("..{}", &display_name[display_name.len() - max_width + 2..])
+            // Layout: [num] [icon] [path...] [time]
+            // num: 2 chars ("1 ")
+            // icon: 2 chars if nerd fonts (" " or "~ "), else 0
+            // time: variable (right-aligned)
+
+            let icon = if display_name.starts_with('~') {
+                icons.home()
             } else {
-                display_name
+                icons.folder()
             };
 
-            ListItem::new(Line::from(vec![
-                Span::styled(format!("{} ", i + 1), number_style),
-                Span::styled(truncated, path_style),
-            ]))
+            let icon_width = if icons.has_nerd_fonts() { 2 } else { 0 };
+            let num_width = 2; // "1 "
+            let time_width = time_ago.len() + 1; // " 2h"
+
+            // Only show time if we have enough width (at least 20 chars)
+            let show_time = inner_width >= 20;
+
+            let available_for_path = if show_time {
+                inner_width
+                    .saturating_sub(num_width)
+                    .saturating_sub(icon_width)
+                    .saturating_sub(time_width)
+            } else {
+                inner_width
+                    .saturating_sub(num_width)
+                    .saturating_sub(icon_width)
+            };
+
+            // Truncate path if needed
+            let truncated_path = if display_name.len() > available_for_path {
+                if available_for_path > 3 {
+                    format!(
+                        "..{}",
+                        &display_name[display_name.len() - (available_for_path - 2)..]
+                    )
+                } else {
+                    display_name.chars().take(available_for_path).collect()
+                }
+            } else {
+                display_name.clone()
+            };
+
+            // Calculate padding for right-aligned time
+            let path_len = truncated_path.len();
+            let padding_len = if show_time {
+                available_for_path.saturating_sub(path_len)
+            } else {
+                0
+            };
+            let padding = " ".repeat(padding_len);
+
+            let mut spans = vec![Span::styled(format!("{} ", i + 1), number_style)];
+
+            if icons.has_nerd_fonts() {
+                spans.push(Span::styled(format!("{} ", icon), path_style));
+            }
+
+            spans.push(Span::styled(truncated_path, path_style));
+
+            if show_time {
+                spans.push(Span::styled(padding, path_style));
+                spans.push(Span::styled(format!(" {}", time_ago), time_style));
+            }
+
+            ListItem::new(Line::from(spans))
         })
         .collect();
 

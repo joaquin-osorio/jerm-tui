@@ -2,10 +2,11 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::{Duration, Instant};
 
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::text::Span;
 
 use crate::git::{spawn_git_worker, GitMessage, GitStatus};
+use crate::theme::Palette;
 use crate::navigation::directory::NavigationState;
 use crate::shortcuts::manager::ShortcutManager;
 
@@ -136,17 +137,17 @@ impl App {
         // Git info
         if let Some(ref git) = self.git_status {
             if !git.branch.is_empty() {
-                // Branch in gray
+                // Branch in muted gray
                 spans.push(Span::styled(
                     git.branch.clone(),
-                    Style::default().fg(Color::Gray),
+                    Style::default().fg(Palette::GIT_BRANCH),
                 ));
 
                 // Dirty indicator
                 if git.is_dirty {
                     spans.push(Span::styled(
                         "*".to_string(),
-                        Style::default().fg(Color::Gray),
+                        Style::default().fg(Palette::GIT_BRANCH),
                     ));
                 }
 
@@ -155,7 +156,7 @@ impl App {
                     spans.push(Span::raw(" "));
                     spans.push(Span::styled(
                         format!("↑{}", git.ahead),
-                        Style::default().fg(Color::Cyan),
+                        Style::default().fg(Palette::GIT_AHEAD_BEHIND),
                     ));
                 }
 
@@ -164,7 +165,7 @@ impl App {
                     spans.push(Span::raw(" "));
                     spans.push(Span::styled(
                         format!("↓{}", git.behind),
-                        Style::default().fg(Color::Cyan),
+                        Style::default().fg(Palette::GIT_AHEAD_BEHIND),
                     ));
                 }
 

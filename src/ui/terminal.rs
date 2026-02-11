@@ -8,6 +8,8 @@ use ratatui::{
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::app::App;
+use crate::highlight::Tokenizer;
+use crate::theme::Palette;
 
 /// Wrap a line of text into multiple lines based on width
 fn wrap_line(line: &str, width: usize) -> Vec<String> {
@@ -42,7 +44,7 @@ fn wrap_line(line: &str, width: usize) -> Vec<String> {
 pub fn render_terminal(f: &mut Frame, area: Rect, app: &App) {
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray))
+        .border_style(Style::default().fg(Palette::BORDER_DEFAULT))
         .title(" Terminal ");
 
     let inner_area = block.inner(area);
@@ -65,11 +67,15 @@ pub fn render_terminal(f: &mut Frame, area: Rect, app: &App) {
     // Save where the input line starts
     let input_line_start = visual_lines.len();
 
-    // Add current prompt and input (with wrapping)
+    // Add current prompt and input (with wrapping and syntax highlighting)
     let prompt_spans = app.prompt_spans();
-    let input_span = Span::raw(app.input.clone());
+
+    // Tokenize and highlight the input
+    let tokens = Tokenizer::tokenize(&app.input);
+    let input_spans = Tokenizer::to_spans(&tokens);
+
     let mut full_line_spans = prompt_spans;
-    full_line_spans.push(input_span);
+    full_line_spans.extend(input_spans);
 
     // For wrapping calculation, use plain string
     let prompt_str = app.prompt_string();
@@ -92,10 +98,7 @@ pub fn render_terminal(f: &mut Frame, area: Rect, app: &App) {
     let scroll = total_visual_lines.saturating_sub(available_height);
 
     // Take visible lines
-    let visible_lines: Vec<Line> = visual_lines
-        .into_iter()
-        .skip(scroll)
-        .collect();
+    let visible_lines: Vec<Line> = visual_lines.into_iter().skip(scroll).collect();
 
     // Render the visible lines
     let paragraph = Paragraph::new(visible_lines);
@@ -103,7 +106,8 @@ pub fn render_terminal(f: &mut Frame, area: Rect, app: &App) {
 
     // Calculate cursor position
     let prompt_width = prompt_str.width();
-    let input_before_cursor = &app.input[..app.input
+    let input_before_cursor = &app.input[..app
+        .input
         .char_indices()
         .nth(app.cursor_pos)
         .map(|(pos, _)| pos)
@@ -142,12 +146,12 @@ pub fn render_status_bar(f: &mut Frame, area: Rect, app: &App) {
     let status = Line::from(vec![
         Span::styled(
             format!(" {} ", mode_text),
-            Style::default().fg(Color::Black).bg(Color::Cyan),
+            Style::default().fg(Color::Black).bg(Palette::BORDER_ACTIVE),
         ),
         Span::raw(" "),
         Span::styled(
             app.current_dir.display().to_string(),
-            Style::default().fg(Color::Gray),
+            Style::default().fg(Palette::TEXT_MUTED),
         ),
     ]);
 
